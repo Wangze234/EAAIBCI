@@ -1,25 +1,34 @@
 import numpy as np
 # 获取排序后的索引
-import scipy as sp
+import scipy.stats as sp
 import scipy.io as scio
 import csv
 
 from scipy.signal import welch
-
-labeldataFile = 'F:\\EAAIBCI\\Trainingset\\Data_Sample01.mat'
-labeldata = scio.loadmat(labeldataFile)
-traindata = labeldata['epo_train']
-data = np.double(traindata[0][0][4])
-label = np.double(traindata[0][0][5])
+# 包含标签的原始训练集数据
+rawdataFile = 'F:\\EAAIBCI\\EAAIBCI\\Training set\\Data_Sample01.mat'
+# eeglab处理好之后的训练集数据
+procdatafile = 'F:\\EAAIBCI\\EAAIBCI\\TraindataAfilter\\Sub01.mat'
+# 获取原始数据
+rawdata = scio.loadmat(rawdataFile)
+# 获取原始数据中的label
+traindataraw = rawdata['epo_train']
+label = np.double(traindataraw[0][0][5])
 label = np.transpose(label)
-
 # 将 one-hot 编码的标签数组转换为整数标签
 integer_labels = np.argmax(label, axis=1)
+
+
+# 获取预处理滤波后的数据
+processdata = scio.loadmat(procdatafile)
+# 获取滤波后的脑电数据
+traindataProc = processdata['data']
+
 
 # 根据整数标签对数据和标签数组进行排序
 sorted_indices = np.argsort(integer_labels)
 sorted_labels = label[sorted_indices]
-sorted_data = data[:, :, sorted_indices]
+sorted_data = traindataProc[:, :, sorted_indices]
 
 
 def hjorth(input):                                             # function for hjorth
@@ -73,7 +82,7 @@ def coeff_var(a):
         k=k+1
     return np.sum(output)/8
 def maxPwelch(data_win, Fs):
-    BandF = [0.1, 5, 7, 12, 30]
+    BandF = [0.1, 3, 7, 12, 30]
     # BandF = [0.1, 3, 7, 12, 30]
     PMax = np.zeros([8, (len(BandF) - 1)]);
 
@@ -115,7 +124,7 @@ def main():
     print(lines.shape)
 
     writer = csv.writer(
-        open('Features/Normalizedfeatures5.csv', 'w', newline=''))  # This file will store the normalized features
+        open('Features/Normalizedfeatures1.csv', 'w', newline=''))  # This file will store the normalized features
     writer.writerows(lines)
     # dataNew = 'D:\\1xuexi\\daima\\naojijiekou\\autism\\启弘启惠\\data001features2.mat'
     # scio.savemat(dataNew, {'SHUJU':features2 })
