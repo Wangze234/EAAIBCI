@@ -11,6 +11,7 @@ If you have any questions about the code or find any bugs
 If you have any questions about the original paper,
    please contact the authors of related paper.
 """
+import openpyxl
 
 '''
 
@@ -36,89 +37,93 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
-''' For Keras dataset_load()'''
 
 
-labeldataFile = 'F:\\EAAIBCI\\Trainingset\\Data_Sample01.mat'
-BCIdataFile = 'F:\\EAAIBCI\\Features\\Normalizedfeatures1.csv'
-labeldata = scio.loadmat(labeldataFile)
-traindata = labeldata['epo_train']
-label = np.double(traindata[0][0][5])
-label = np.transpose(label)
+def read_label_values(file_path, column_index):
+    # file_path 表示label文件路径
+    # column_index 表示所在列
+    # 打开 Excel 文件
+    wb = openpyxl.load_workbook(file_path)
+    # 选择第一个工作表
+    sheet = wb.active
+    # 创建一个空数组，用于存储列值
+    column_values = []
+    # 遍历指定列的每一行，将值添加到数组中
+    for row in sheet.iter_rows(min_row=1, max_row=sheet.max_row, min_col=column_index,
+                               max_col=column_index, values_only=True):
+        column_values.append(row[0])
+    # 关闭 Excel 文件
+    wb.close()
+    return column_values
 
-BCIdata = []
-with open(BCIdataFile, "r") as csvfile:
-    csvreader = csv.reader(csvfile)
-    for row in csvreader:
-        BCIdata.append(row)
+def read_data_values(file_path):
+    datas = []
+    with open(file_path, "r") as csvfile:
+        csvreader = csv.reader(csvfile)
+        for row in csvreader:
+            datas.append(row)
+    # 关闭文档
+    csvfile.close()
+    datas = np.double(datas)
+    # BCIdata = BCIdata.astype(float)
+    print(datas.shape)
+    return datas
 
-# 关闭文档
-csvfile.close()
-BCIdata = np.array(BCIdata)
-BCIdata = BCIdata.astype(float)
-print(BCIdata.shape)
+def  sort_label(tag, label):
+    if tag == 'Train':
+        labels_indices = np.argmax(label, axis=1)
+        sorted_indices = np.argsort(labels_indices)
+        labels = label[sorted_indices]
+    else:
+        sorted_indices = np.argsort(label)
+        labels = label[sorted_indices]
+        # 将labels转化为独热编码 一位是1，其他位都是0的编码
+        enc = OneHotEncoder()
+        labels = enc.fit_transform(labels.reshape(-1, 1)).toarray()
+    return labels
 
-labels_indices = np.argmax(label, axis=1)
-# 使用相同的索引对标签和特征数组进行排序
-sorted_indices = np.argsort(labels_indices)
-sorted_labels = label[sorted_indices]
-sorted_features = BCIdata[sorted_indices]
+print("***************************************读取训练集*******************************************")
+tag = 'Train'
+# 读取训练集标签
+TrainLabelDataFile = 'F:\\EAAIBCI\\EAAIBCI\\Training set\\Data1.mat'
+# 读取排序后提取的训练集特征
+TrainDataFile = 'F:\\EAAIBCI\\EAAIBCI\\TrainFeatures\\Normalizedfeatures1-2.csv'
+TrainLabelData = scio.loadmat(TrainLabelDataFile)
+TrainLabelData = TrainLabelData['epo_train']
+TrainLabel = np.double(TrainLabelData[0][0][5])
+TrainLabel = np.transpose(TrainLabel)
+# 使用相同的索引对标签进行排序
+Train_labels = sort_label(tag, TrainLabel)
+# 获取数据
+Train_datas = read_data_values(TrainDataFile)
+
+
+print("***************************************读取测试集*******************************************")
+tag = 'Test'
+# 读取测试集标签
+TestLabelDataFile = 'F:\\EAAIBCI\\EAAIBCI\\Test set\\Testlabel.xlsx'
+# 读取排序后提取的测试集特征
+TestDataFile = 'F:\\EAAIBCI\\EAAIBCI\\TestFeatures\\Normalizedfeatures01.csv'
+# 获取原始数据中的label
+TestLabel = read_label_values(TestLabelDataFile, 0)
+TestLabel = np.array(TestLabel)
+# 使用相同的索引对标签进行排序
+Test_labels = sort_label(tag, TestLabel)
+Test_datas = read_data_values(TestDataFile)
 # 先划分训练集和测试集
-traindata, testdata, trainlabel, testlabel = train_test_split(sorted_features, sorted_labels, test_size=0.1,)
+# traindata, testdata, trainlabel, testlabel = train_test_split(Train_datas, Train_labels, test_size=0.1,)
 
-# 再由训练集划分训练和验证集
-
-train_X1, train_X2, train_y1, train_y2 = train_test_split(traindata, trainlabel, test_size=0.33, random_state=1)
-train_X4, train_X3, train_y4, train_y3 = train_test_split(train_X1, train_y1, test_size=0.5, random_state=1)
 
 N1 =10 #  # of nodes belong to each window
 N2 =10 #  # of windows -------Feature mapping layer
-N3 =100  # of enhancement nodes -----Enhance layer
+N3 =500  # of enhancement nodes -----Enhance layer
 L = 5    #  # of incremental steps
 M1 = 30  #  # of adding enhance nodes
 s = 0.8  #  shrink coefficient
 C = 2**-30 # Regularization coefficient
 
 print('-------------------BLS_BASE---------------------------')
-B1,B1test,B1test1,test_acc1=BLS(traindata, trainlabel, testdata, testlabel, s, C, N1, N2, N3)
-# B1,B1test,B1test1=BLS(train_X2, train_y2, testdata, testlabel, s, C, N1, N2, N3)
-# B2,B2test,B2test1=BLS(train_X3,train_y3, testdata, testlabel, s, C, N1, N2, N3)
-# B3,B3test,B3test1=BLS(train_X4,train_y4, testdata, testlabel, s, C, N1, N2, N3)
-# B4,B4test,B4test1=BLS(train_X2,train_y2, testdata, testlabel, s, C, N1, N2, N3)
-# B5,B5test,B5test1=BLS(train_X2,train_y2, testdata, testlabel, s, C, N1, N2, N3)
-# # B6,B6test,B6test1=BLS(train_X2,train_y2, testdata, testlabel, s, C, N1, N2, N3)
-# # print(type(B1))
-# outputweight1=np.double(np.vstack((B1,B2,B3,B4,B5)))
-# InputOfOutputLayerTest1=np.double(np.hstack((B1test,B2test,B3test,B4test,B5test)))
-# # print(outputweight1.shape)
-# # print(InputOfOutputLayerTest1.shape)
-# OutputOfTest = np.dot(InputOfOutputLayerTest1,outputweight1)
-# def show_accuracy(predictLabel, Label):
-#     count = 0
-#     label_1 = np.zeros(Label.shape[0])
-#
-#     label_1 = Label.argmax(axis=1)
-#     predlabel = []
-#     predlabel = predictLabel.argmax(axis=1)
-# #    predlabel = torch.topk(predlabel, 1)[1].squeeze(1)
-#
-#     for j in list(range(Label.shape[0])):
-#         if label_1[j] == predlabel[j]:
-#             count += 1
-#
-#     return (round(count/len(Label),5))
-# testAcc = show_accuracy(OutputOfTest,testlabel)
-# print(testAcc)
-#
-#
-# B1test11=np.zeros(shape=(len(B1test1),B1test1.shape[1]))
-# B1test11=np.mat(B1test11)
-#
-# for i in range (len(B1test1)):
-#     for j in range (len(B1test1[0])):
-#         B1test11[i][j]=(B1test1[i][j]+B2test1[i][j]+B3test1[i][j])/3
-# testAcc1 = show_accuracy(B1test11,testlabel)
-# print(testAcc1)
+B1,B1test,B1test1,test_acc1=BLS(Train_datas, Train_labels, Test_datas, Test_labels, s, C, N1, N2, N3)
 
 
 

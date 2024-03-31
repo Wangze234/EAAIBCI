@@ -6,9 +6,9 @@ import csv
 
 from scipy.signal import welch
 # 包含标签的原始训练集数据
-rawdataFile = 'F:\\EAAIBCI\\EAAIBCI\\Training set\\Data_Sample01.mat'
+rawdataFile = 'F:\\EAAIBCI\\EAAIBCI\\Training set\\Data1.mat'
 # eeglab处理好之后的训练集数据
-procdatafile = 'F:\\EAAIBCI\\EAAIBCI\\TraindataAfilter\\Sub01.mat'
+procdatafile = 'F:\\EAAIBCI\\EAAIBCI\\TraindataAfilter\\6\\Sub01-data.mat'
 # 获取原始数据
 rawdata = scio.loadmat(rawdataFile)
 # 获取原始数据中的label
@@ -21,32 +21,52 @@ integer_labels = np.argmax(label, axis=1)
 
 # 获取预处理滤波后的数据
 processdata = scio.loadmat(procdatafile)
+processdata = processdata['EEG']
+traindataProc = np.double(processdata[0][0][15])
 # 获取滤波后的脑电数据
-traindataProc = processdata['data']
+arr_transposed = np.transpose(traindataProc, (1, 0, 2))
 
 
 # 根据整数标签对数据和标签数组进行排序
 sorted_indices = np.argsort(integer_labels)
-sorted_labels = label[sorted_indices]
-sorted_data = traindataProc[:, :, sorted_indices]
+sorted_data = arr_transposed[:, :, sorted_indices]
 
 
 def hjorth(input):                                             # function for hjorth
+    # realinput = input
+    # hjorth_activity = np.zeros(len(realinput))
+    # hjorth_mobility = np.zeros(len(realinput))
+    # hjorth_diffmobility = np.zeros(len(realinput))
+    # hjorth_complexity = np.zeros(len(realinput))
+    # diff_input = np.diff(realinput)
+    # diff_diffinput = np.diff(diff_input)
+    # k = 0
+    # for j in realinput:
+    #     hjorth_activity[k] = np.var(j)
+    #     hjorth_mobility[k] = np.sqrt(np.var(diff_input[k])/hjorth_activity[k])
+    #     hjorth_diffmobility[k] = np.sqrt(np.var(diff_diffinput[k])/np.var(diff_input[k]))
+    #     hjorth_complexity[k] = hjorth_diffmobility[k]/hjorth_mobility[k]
+    #     k = k+1
+    # return np.sum(hjorth_activity)/8, np.sum(hjorth_mobility)/8, np.sum(hjorth_complexity)/8
     realinput = input
-    hjorth_activity = np.zeros(len(realinput))
-    hjorth_mobility = np.zeros(len(realinput))
-    hjorth_diffmobility = np.zeros(len(realinput))
-    hjorth_complexity = np.zeros(len(realinput))
-    diff_input = np.diff(realinput)
-    diff_diffinput = np.diff(diff_input)
-    k = 0
-    for j in realinput:
-        hjorth_activity[k] = np.var(j)
-        hjorth_mobility[k] = np.sqrt(np.var(diff_input[k])/hjorth_activity[k])
-        hjorth_diffmobility[k] = np.sqrt(np.var(diff_diffinput[k])/np.var(diff_input[k]))
-        hjorth_complexity[k] = hjorth_diffmobility[k]/hjorth_mobility[k]
-        k = k+1
-    return np.sum(hjorth_activity)/8, np.sum(hjorth_mobility)/8, np.sum(hjorth_complexity)/8
+    hjorth_activity = np.zeros((3, 6))
+    hjorth_mobility = np.zeros((3, 6))
+    hjorth_diffmobility = np.zeros((3, 6))
+    hjorth_complexity = np.zeros((3, 6))
+    for i in range(3):
+        for j in range(6):
+            hjorth_activity[i, j] = np.var(realinput[i * 265:(i + 1) * 265, j])
+    diff_input = np.diff(realinput, axis=0)
+    diff_diffinput = np.diff(diff_input, axis=0)
+    for i in range(3):
+        for j in range(6):
+            hjorth_mobility[i, j] = np.sqrt(
+                np.var(diff_input[i * 265:(i + 1) * 265, j]) / hjorth_activity[i, j])
+            hjorth_diffmobility[i, j] = np.sqrt(
+                np.var(diff_diffinput[i * 264:(i + 1) * 264, j]) / np.var(diff_input[i * 265:(i + 1) * 265, j]))
+            hjorth_complexity[i, j] = hjorth_diffmobility[i, j] / hjorth_mobility[i, j]
+    return np.sum(hjorth_activity, axis=0) / 8, np.sum(hjorth_mobility, axis=0) / 8, np.sum(
+        hjorth_complexity, axis=0) / 8
 def my_kurtosis(a):
     b = a # Extracting the data from the 14 channels
     output = np.zeros(len(b)) # Initializing the output array with zeros (length = 14)
@@ -88,7 +108,6 @@ def maxPwelch(data_win, Fs):
 
     for j in range(8):
         f, Psd = welch(data_win[j, :], Fs)
-
         for i in range(len(BandF) - 1):
             fr = np.where((f > BandF[i]) & (f <= BandF[i + 1]))
             PMax[j, i] = np.max(Psd[fr])
@@ -96,15 +115,17 @@ def maxPwelch(data_win, Fs):
     return np.sum(PMax[:, 0]) / 8, np.sum(PMax[:, 1]) / 8, np.sum(PMax[:, 2]) / 8, np.sum(PMax[:, 3]) / 8
 def main():
     third_dim_size =sorted_data.shape[2]
+    second_dim_size = sorted_data.shape[1]
     features2 = []
 
     for i in range(third_dim_size):
+
         hjorthfeatures = hjorth(sorted_data[:, :, i])
-        my_kurtosisfeatures = my_kurtosis(sorted_data[:, :, i])
-        wrapper2features = skewness(sorted_data[:, :, i])
-        coeff_varfeatures = coeff_var(sorted_data[:, :, i])
-        maxPwelchfeatures = maxPwelch(sorted_data[:, :, i], 300)
-        combined_features = np.hstack((hjorthfeatures, my_kurtosisfeatures,wrapper2features,coeff_varfeatures,maxPwelchfeatures))
+        # my_kurtosisfeatures = my_kurtosis(sorted_data[:, :, i])
+        # wrapper2features = skewness(sorted_data[:, :, i])
+        # coeff_varfeatures = coeff_var(sorted_data[:, :, i])
+        # maxPwelchfeatures = maxPwelch(sorted_data[:, :, i], 256)
+        combined_features = np.hstack((hjorthfeatures))
         features2.append(combined_features)
 
     features2 = np.array(features2)
@@ -124,7 +145,7 @@ def main():
     print(lines.shape)
 
     writer = csv.writer(
-        open('Features/Normalizedfeatures1.csv', 'w', newline=''))  # This file will store the normalized features
+        open('TrainFeatures/Normalizedfeatures1-2.csv', 'w', newline=''))  # This file will store the normalized features
     writer.writerows(lines)
     # dataNew = 'D:\\1xuexi\\daima\\naojijiekou\\autism\\启弘启惠\\data001features2.mat'
     # scio.savemat(dataNew, {'SHUJU':features2 })
