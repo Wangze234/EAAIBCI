@@ -87,7 +87,7 @@ tag = 'Train'
 # 读取训练集标签
 TrainLabelDataFile = 'F:\\EAAIBCI\\EAAIBCI\\Training set\\Data1.mat'
 # 读取排序后提取的训练集特征
-TrainDataFile = 'F:\\EAAIBCI\\EAAIBCI\\TrainFeatures\\Normalizedfeatures1-2.csv'
+TrainDataFile = 'F:\\EAAIBCI\\EAAIBCI\\TrainFeatures\\Normalizedfeatures1.csv'
 TrainLabelData = scio.loadmat(TrainLabelDataFile)
 TrainLabelData = TrainLabelData['epo_train']
 TrainLabel = np.double(TrainLabelData[0][0][5])
